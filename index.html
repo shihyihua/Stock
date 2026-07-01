@@ -377,16 +377,16 @@
   var fullListLoaded = false;
 
   function loadFullStockList(){
-    // 向證交所公開資料 API 抓取「全部上市股票」代碼＋名稱，取代/補足手動清單
-    fetch("https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL")
+    // 改由自家 Vercel 伺服器代理抓取「全部上市股票」代碼＋名稱，避開手機瀏覽器的跨網域限制
+    fetch("/api/stocklist")
       .then(function(r){ return r.json(); })
       .then(function(list){
-        if(!Array.isArray(list)) return;
+        if(!Array.isArray(list)) throw new Error("bad list");
         var existingCodes = {};
         STOCK_LIST.forEach(function(s){ existingCodes[s[0]] = true; });
         list.forEach(function(item){
-          var code = (item.Code || "").trim();
-          var name = (item.Name || "").trim();
+          var code = (item[0] || "").trim();
+          var name = (item[1] || "").trim();
           if(/^\d{4,6}$/.test(code) && name && !existingCodes[code]){
             STOCK_LIST.push([code, name]);
             existingCodes[code] = true;
@@ -514,38 +514,17 @@
     else el.textContent = "留意風險，深呼吸一下 🍃 平均 "+avg.toFixed(1)+"%";
   }
 
-  /* ---------------- 現價查詢（改用 Yahoo Finance 公開行情，瀏覽器可直接讀取，不需要額外部署後端） ---------------- */
+  /* ---------------- 現價查詢（透過自家 /api/price 伺服器代理，避開手機瀏覽器的 CORS 限制） ---------------- */
   function fetchPrice(code){
-    function tryTicker(suffix){
-      var url = "https://query1.finance.yahoo.com/v8/finance/chart/" + code + suffix + "?interval=1d&range=1d";
-      return fetch(url).then(function(r){
-        if(!r.ok) throw new Error("not ok");
-        return r.json();
-      }).then(function(j){
-        var result = j && j.chart && j.chart.result && j.chart.result[0];
-        var meta = result && result.meta;
-        var price = meta && (meta.regularMarketPrice != null ? meta.regularMarketPrice : meta.previousClose);
-        if(price == null || isNaN(price)) return null;
-        return {price: price, name: (meta.shortName || null)};
-      }).catch(function(){ return null; });
-    }
-    // 先試上市（.TW），查不到再試上櫃（.TWO）
-    return tryTicker(".TW").then(function(res){
-      if(res) return res;
-      return tryTicker(".TWO");
-    }).then(function(res){
-      if(res) return res;
-      // 最後備援：如果專案有部署 /api/price（自架代理），再試一次
-      return fetch("/api/price?code=" + encodeURIComponent(code)).then(function(r){
-        if(!r.ok) return null;
-        return r.json();
-      }).then(function(data){
-        if(data && typeof data.price === "number" && !isNaN(data.price)){
-          return {price: data.price, name: data.name || null};
-        }
-        return null;
-      }).catch(function(){ return null; });
-    });
+    return fetch("/api/price?code=" + encodeURIComponent(code)).then(function(r){
+      if(!r.ok) return null;
+      return r.json();
+    }).then(function(data){
+      if(data && typeof data.price === "number" && !isNaN(data.price)){
+        return {price: data.price, name: data.name || null};
+      }
+      return null;
+    }).catch(function(){ return null; });
   }
 
   /* ---------------- 分類 CRUD ---------------- */
@@ -901,10 +880,21 @@
   }
 
   /* ---------------- 通知權限 ---------------- */
+  function isIos(){
+    return /iphone|ipad|ipod/i.test(navigator.userAgent);
+  }
+  function isStandalone(){
+    return window.navigator.standalone === true || window.matchMedia("(display-mode: standalone)").matches;
+  }
+
   function updateNotifStatusText(){
     var el = document.getElementById("notif-status");
     if(!("Notification" in window)){
-      el.textContent = "此瀏覽器不支援通知功能";
+      if(isIos() && !isStandalone()){
+        el.innerHTML = "📱 iPhone 需先「加入主畫面」，並從主畫面圖示打開才能使用通知（點下方分享鍵 → 加入主畫面，需 iOS 16.4 以上）";
+      }else{
+        el.textContent = "此瀏覽器不支援通知功能";
+      }
       return;
     }
     if(Notification.permission === "granted"){
@@ -918,7 +908,11 @@
 
   document.getElementById("btn-notif").onclick = function(){
     if(!("Notification" in window)){
-      showToast("此瀏覽器不支援通知功能 😢");
+      if(isIos() && !isStandalone()){
+        showToast("📱 請先把網頁加入主畫面，再從主畫面圖示打開才能開啟通知唷");
+      }else{
+        showToast("此瀏覽器不支援通知功能 😢");
+      }
       return;
     }
     Notification.requestPermission().then(function(){
