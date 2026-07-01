@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>股票帶你飛 🎈 台股未實現損益</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-top:#FFF7EC;
+    --bg-bottom:#FFE6D2;
+    --card:#FFFDF9;
+    --card-soft:#FFF3E6;
+    --primary:#FF9F68;
+    --primary-dark:#F2793B;
+    --secondary:#8ED2E0;
+    --secondary-dark:#5FB5C6;
+    --profit:#5FC377;
+    --profit-strong:#2FA84C;
+    --loss:#FF93A8;
+    --loss-strong:#F1526E;
+    --text:#5C4433;
+    --text-light:#A08A78;
+    --line:#F0DFCB;
+    --radius:20px;
+    --radius-sm:12px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:'Noto Sans TC',sans-serif;
+    color:var(--text);
+    background:linear-gradient(180deg,var(--bg-top) 0%, var(--bg-bottom) 60%, #FFD9C2 100%);
+    min-height:100vh;
+    padding-bottom:80px;
+  }
+  h1,h2,h3,button,.baloo{font-family:'Baloo 2',sans-serif;}
+
+  /* ---------- Hero ---------- */
+  .hero{
+    position:relative;
+    overflow:hidden;
+    padding:38px 20px 34px;
+    text-align:center;
+    background:radial-gradient(circle at 20% 20%, rgba(255,255,255,0.55), transparent 60%),
+               linear-gradient(135deg,#FFD9B8,#FFB88C 70%);
+    border-bottom-left-radius:36px;
+    border-bottom-right-radius:36px;
+    box-shadow:0 6px 24px rgba(230,150,90,0.18);
+  }
+  .cloud{
+    position:absolute;
+    font-size:28px;
+    opacity:0.85;
+    animation:drift linear infinite;
+  }
+  .cloud.c1{top:18px; left:-10%; animation-duration:26s;}
+  .cloud.c2{top:60px; left:-15%; font-size:20px; animation-duration:34s; animation-delay:-8s;}
+  .cloud.c3{top:10px; left:-20%; font-size:22px; animation-duration:40s; animation-delay:-20s;}
+  @keyframes drift{
+    from{transform:translateX(0);}
+    to{transform:translateX(130vw);}
+  }
+  .balloon{
+    font-size:42px;
+    display:inline-block;
+    animation:bob 3.2s ease-in-out infinite;
+  }
+  @keyframes bob{
+    0%,100%{transform:translateY(0) rotate(-3deg);}
+    50%{transform:translateY(-10px) rotate(3deg);}
+  }
+  .hero h1{
+    font-size:28px;
+    margin:6px 0 4px;
+    color:#7A4A22;
+    font-weight:800;
+    letter-spacing:1px;
+  }
+  .hero p{
+    margin:0 0 18px;
+    color:#8A5C34;
+    font-size:14px;
+  }
+  .hero-actions{
+    display:flex;
+    gap:10px;
+    justify-content:center;
+    flex-wrap:wrap;
+  }
+  .btn{
+    border:none;
+    border-radius:999px;
+    padding:10px 18px;
+    font-family:'Baloo 2',sans-serif;
+    font-weight:600;
+    font-size:14px;
+    cursor:pointer;
+    transition:transform .15s ease, box-shadow .15s ease;
+    box-shadow:0 4px 10px rgba(0,0,0,0.08);
+  }
+  .btn:active{transform:scale(0.96);}
+  .btn-primary{background:var(--primary); color:#fff;}
+  .btn-primary:hover{background:var(--primary-dark);}
+  .btn-secondary{background:var(--secondary); color:#fff;}
+  .btn-secondary:hover{background:var(--secondary-dark);}
+  .btn-ghost{background:#fff; color:var(--text); border:1.5px solid var(--line);}
+  .btn-ghost:hover{background:var(--card-soft);}
+  .btn-sm{padding:6px 12px; font-size:12px; border-radius:10px;}
+  .btn-icon{
+    background:transparent; border:none; cursor:pointer; font-size:16px;
+    padding:4px 6px; border-radius:8px; line-height:1;
+  }
+  .btn-icon:hover{background:rgba(0,0,0,0.06);}
+
+  #notif-status{font-size:12px; color:#8A5C34; margin-top:8px;}
+
+  /* ---------- Main ---------- */
+  main{
+    max-width:960px;
+    margin:24px auto;
+    padding:0 16px;
+  }
+  .summary-bar{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:8px;
+    background:var(--card);
+    border-radius:var(--radius-sm);
+    padding:12px 18px;
+    margin-bottom:18px;
+    box-shadow:0 3px 10px rgba(230,150,90,0.10);
+    font-size:13px;
+    color:var(--text-light);
+  }
+  .summary-bar b{color:var(--text);}
+
+  .category{
+    background:var(--card);
+    border-radius:var(--radius);
+    margin-bottom:22px;
+    box-shadow:0 6px 18px rgba(230,150,90,0.14);
+    overflow:hidden;
+    border:1.5px solid #FFEDD9;
+  }
+  .category-header{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:14px 16px;
+    background:linear-gradient(90deg,var(--card-soft),#FFF9F1);
+    border-bottom:1.5px solid var(--line);
+    flex-wrap:wrap;
+  }
+  .category-name{
+    font-family:'Baloo 2',sans-serif;
+    font-weight:700;
+    font-size:17px;
+    color:var(--primary-dark);
+    flex:1;
+    min-width:80px;
+    padding:4px 8px;
+    border-radius:8px;
+    cursor:text;
+  }
+  .category-name:hover{background:rgba(255,255,255,0.6);}
+  .category-name-input{
+    font-family:'Baloo 2',sans-serif;
+    font-weight:700;
+    font-size:17px;
+    color:var(--primary-dark);
+    flex:1;
+    min-width:80px;
+    padding:4px 8px;
+    border-radius:8px;
+    border:1.5px solid var(--primary);
+  }
+  .cat-controls{display:flex; gap:2px; align-items:center;}
+  .cat-count{
+    font-size:11px;
+    color:var(--text-light);
+    background:#fff;
+    border-radius:999px;
+    padding:2px 10px;
+    margin-right:4px;
+  }
+
+  .table-wrap{overflow-x:auto; padding:6px 10px 14px;}
+  table{width:100%; border-collapse:collapse; min-width:560px;}
+  thead th{
+    font-family:'Baloo 2',sans-serif;
+    font-size:12.5px;
+    color:var(--text-light);
+    text-align:left;
+    padding:6px 8px;
+    border-bottom:2px solid var(--line);
+    white-space:nowrap;
+  }
+  tbody td{
+    padding:6px 8px;
+    border-bottom:1px solid #FBEEDD;
+    vertical-align:middle;
+  }
+  tbody tr:hover{background:#FFFAF2;}
+  .cell-input{
+    width:100%;
+    border:1.5px solid var(--line);
+    border-radius:10px;
+    padding:7px 9px;
+    font-size:13.5px;
+    font-family:'Noto Sans TC',sans-serif;
+    color:var(--text);
+    background:#fff;
+  }
+  .cell-input:focus{outline:none; border-color:var(--primary);}
+  .name-cell{position:relative; min-width:160px;}
+  .price-cell,.cost-cell{min-width:88px;}
+  .status-cell{min-width:170px; font-size:13px;}
+  .status-pill{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding:6px 10px;
+    border-radius:999px;
+    font-weight:600;
+    font-size:12.5px;
+    line-height:1.3;
+  }
+  .status-profit-strong{background:#E4F8E9; color:var(--profit-strong);}
+  .status-profit{background:#EEFAF0; color:var(--profit);}
+  .status-neutral{background:#F3EFE9; color:var(--text-light);}
+  .status-loss{background:#FFEEF1; color:var(--loss);}
+  .status-loss-strong{background:#FFE3E8; color:var(--loss-strong);}
+  .status-unknown{background:#F5F0E8; color:var(--text-light);}
+  .pct{font-size:11px; opacity:.85;}
+
+  .autocomplete-dd{
+    position:fixed;
+    background:#fff;
+    border:1.5px solid var(--line);
+    border-radius:12px;
+    box-shadow:0 8px 20px rgba(0,0,0,0.12);
+    max-height:220px;
+    overflow-y:auto;
+    z-index:999;
+    display:none;
+  }
+  .autocomplete-item{
+    padding:8px 12px;
+    font-size:13.5px;
+    cursor:pointer;
+    display:flex;
+    justify-content:space-between;
+  }
+  .autocomplete-item:hover{background:var(--card-soft);}
+  .autocomplete-item small{color:var(--text-light);}
+
+  .row-actions{display:flex; gap:4px; justify-content:center;}
+
+  .add-row-bar{
+    display:flex;
+    justify-content:flex-start;
+    padding:0 16px 16px;
+  }
+
+  .add-category-wrap{
+    text-align:center;
+    margin:28px 0 10px;
+  }
+
+  .empty-hint{
+    text-align:center;
+    color:var(--text-light);
+    font-size:13px;
+    padding:22px 10px 30px;
+  }
+
+  footer{
+    text-align:center;
+    color:var(--text-light);
+    font-size:12px;
+    padding:20px;
+  }
+
+  .toast{
+    position:fixed;
+    bottom:24px; left:50%;
+    transform:translateX(-50%) translateY(20px);
+    background:#5C4433;
+    color:#fff;
+    padding:10px 18px;
+    border-radius:999px;
+    font-size:13px;
+    box-shadow:0 6px 16px rgba(0,0,0,0.2);
+    opacity:0;
+    pointer-events:none;
+    transition:all .25s ease;
+    z-index:1200;
+    font-family:'Noto Sans TC',sans-serif;
+  }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+  @media (max-width:640px){
+    .hero h1{font-size:22px;}
+    .balloon{font-size:34px;}
+  }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <span class="cloud c1">☁️</span>
+  <span class="cloud c2">☁️</span>
+  <span class="cloud c3">☁️</span>
+  <div class="balloon">🎈</div>
+  <h1>股票帶你飛</h1>
+  <p>溫暖追蹤每一筆未實現損益，小確幸投資日常 ☕️✨</p>
+  <div class="hero-actions">
+    <button class="btn btn-secondary" id="btn-refresh">🔄 重新整理現價</button>
+    <button class="btn btn-primary" id="btn-notif">🔔 開啟提醒通知</button>
+  </div>
+  <div id="notif-status"></div>
+</div>
+
+<main>
+  <div class="summary-bar" id="summary-bar">
+    <span>目前共 <b id="row-count">0</b> / 100 檔股票・<b id="cat-count-total">0</b> 個分類</span>
+    <span id="mood-line">今天也要開心投資唷 🌤️</span>
+  </div>
+
+  <div id="categories-container"></div>
+
+  <div class="add-category-wrap">
+    <button class="btn btn-ghost" id="btn-add-category">🗂️ 新增分類</button>
+  </div>
+</main>
+
+<footer>
+  🎈 現價自動查詢來源為台灣證券交易所公開資訊，若無法自動取得，請直接手動輸入現價即可・資料僅儲存在你的裝置上
+</footer>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------------- 常見台股清單（可搜尋代碼或名稱，其餘股票仍可直接輸入代碼） ---------------- */
+  var STOCK_LIST = [
+    ["2330","台積電"],["2317","鴻海"],["2454","聯發科"],["2412","中華電"],
+    ["2882","國泰金"],["2881","富邦金"],["6505","台塑化"],["1301","台塑"],
+    ["1303","南亞"],["2308","台達電"],["2891","中信金"],["2886","兆豐金"],
+    ["2884","玉山金"],["2885","元大金"],["2892","第一金"],["2880","華南金"],
+    ["2887","台新金"],["2890","永豐金"],["2883","開發金"],["5880","合庫金"],
+    ["3008","大立光"],["2303","聯電"],["2379","瑞昱"],["2357","華碩"],
+    ["2382","廣達"],["2395","研華"],["3711","日月光投控"],["2409","友達"],
+    ["2408","南亞科"],["2327","國巨"],["2345","智邦"],["2360","致茂"],
+    ["3034","聯詠"],["3037","欣興"],["2377","微星"],["2385","群光"],
+    ["3231","緯創"],["2356","英業達"],["2301","光寶科"],["2324","仁寶"],
+    ["6669","緯穎"],["9910","豐泰"],["1216","統一"],["1101","台泥"],
+    ["1102","亞泥"],["2002","中鋼"],["2603","長榮"],["2609","陽明"],
+    ["2615","萬海"],["2610","華航"],["2618","長榮航"],["5871","中租-KY"],
+    ["2912","統一超"],["9904","寶成"],["9945","潤泰新"],["1590","亞德客-KY"],
+    ["4904","遠傳"],["3045","台灣大"],["2801","彰銀"],["5876","上海商銀"],
+    ["0050","元大台灣50"],["0056","元大高股息"],["00878","國泰永續高股息"],
+    ["00919","群益台灣精選高息"],["00929","復華台灣科技優息"],["00713","元大台灣高息低波"]
+  ];
+
+  var MAX_ROWS = 100;
+  var STORAGE_KEY = "portfolio-data-v1";
+  var storageOk = true;
+
+  var state = {
+    categories: [{id:"cat-default", name:"未分類", order:0}],
+    rows: []
+  };
+
+  var rowRefs = {};          // rowId -> {priceInput, costInput, statusCell, nameInput}
+  var lastNotified = {};     // rowId -> statusClass
+  var saveTimer = null;
+  var activeDropdown = null;
+
+  function uid(prefix){
+    return prefix + "-" + Math.random().toString(36).slice(2,10) + Date.now().toString(36);
+  }
+
+  function showToast(msg){
+    var t = document.getElementById("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(t._timer);
+    t._timer = setTimeout(function(){ t.classList.remove("show"); }, 2200);
+  }
+
+  /* ---------------- 儲存 / 讀取 ---------------- */
+  function debouncedSave(){
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveState, 500);
+  }
+
+  function saveState(){
+    if(!storageOk || !window.storage) return;
+    try{
+      window.storage.set(STORAGE_KEY, JSON.stringify(state), false).catch(function(){});
+    }catch(e){ /* ignore */ }
+  }
+
+  function loadState(){
+    if(!window.storage){ storageOk = false; render(); return; }
+    window.storage.get(STORAGE_KEY, false).then(function(res){
+      if(res && res.value){
+        try{
+          var parsed = JSON.parse(res.value);
+          if(parsed && parsed.categories && parsed.rows){
+            state = parsed;
+          }
+        }catch(e){ /* keep default */ }
+      }
+      render();
+    }).catch(function(){
+      render();
+    });
+  }
+
+  /* ---------------- 判斷邏輯 ---------------- */
+  function computeStatus(row){
+    var cost = parseFloat(row.costPrice);
+    var price = parseFloat(row.currentPrice);
+    if(isNaN(cost) || row.costPrice === "" || row.costPrice === null || row.costPrice === undefined){
+      return {cls:"status-unknown", emoji:"❓", text:"請輸入成本均價", pct:null};
+    }
+    if(isNaN(price) || row.currentPrice === "" || row.currentPrice === null || row.currentPrice === undefined){
+      return {cls:"status-unknown", emoji:"❓", text:"請先取得或輸入現價", pct:null};
+    }
+    var pct = ((price - cost) / cost) * 100;
+    if(pct >= 15) return {cls:"status-profit-strong", emoji:"🎉🚀", text:"大賺！可考慮獲利了結", pct:pct};
+    if(pct >= 5)  return {cls:"status-profit", emoji:"😊💰", text:"小賺，續抱或分批獲利", pct:pct};
+    if(pct > -5)  return {cls:"status-neutral", emoji:"🙂", text:"持平，觀望中", pct:pct};
+    if(pct > -10) return {cls:"status-loss", emoji:"😟", text:"小賠，留意風險", pct:pct};
+    return {cls:"status-loss-strong", emoji:"🚨✂️", text:"建議停損囉", pct:pct};
+  }
+
+  function statusHtml(status){
+    var pctText = status.pct === null ? "" : ('<span class="pct">('+(status.pct>0?"+":"")+status.pct.toFixed(1)+"%)</span>");
+    return '<span class="status-pill '+status.cls+'">'+status.emoji+' '+status.text+' '+pctText+'</span>';
+  }
+
+  function updateStatusCell(rowId){
+    var row = state.rows.find(function(r){ return r.id === rowId; });
+    if(!row) return;
+    var status = computeStatus(row);
+    var ref = rowRefs[rowId];
+    if(ref && ref.statusCell){
+      ref.statusCell.innerHTML = statusHtml(status);
+    }
+    maybeNotify(row, status);
+    updateMoodLine();
+  }
+
+  function maybeNotify(row, status){
+    if(!("Notification" in window) || Notification.permission !== "granted") return;
+    var strong = (status.cls === "status-profit-strong" || status.cls === "status-loss-strong");
+    if(!strong) return;
+    if(lastNotified[row.id] === status.cls) return;
+    lastNotified[row.id] = status.cls;
+    var label = row.name ? (row.name) : "你的股票";
+    try{
+      new Notification(status.emoji + " 股票帶你飛提醒", {
+        body: label + "　" + status.text + (status.pct!==null ? ("（"+(status.pct>0?"+":"")+status.pct.toFixed(1)+"%）") : "")
+      });
+    }catch(e){ /* ignore */ }
+  }
+
+  function updateMoodLine(){
+    var valid = state.rows.map(computeStatus).filter(function(s){ return s.pct !== null; });
+    var el = document.getElementById("mood-line");
+    if(!valid.length){ el.textContent = "今天也要開心投資唷 🌤️"; return; }
+    var avg = valid.reduce(function(a,s){ return a+s.pct; },0) / valid.length;
+    if(avg >= 8) el.textContent = "整體績效發光發熱 ✨ 平均 "+avg.toFixed(1)+"%";
+    else if(avg >= 0) el.textContent = "整體穩穩上升中 🌱 平均 "+avg.toFixed(1)+"%";
+    else if(avg >= -8) el.textContent = "小幅震盪，保持微笑 🙂 平均 "+avg.toFixed(1)+"%";
+    else el.textContent = "留意風險，深呼吸一下 🍃 平均 "+avg.toFixed(1)+"%";
+  }
+
+  /* ---------------- 現價查詢 ---------------- */
+  function fetchPrice(code){
+    var urlTse = "https://mis.tse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_"+code+".tw&json=1&delay=0";
+    var urlOtc = "https://mis.tse.com.tw/stock/api/getStockInfo.jsp?ex_ch=otc_"+code+".tw&json=1&delay=0";
+    function parse(json){
+      if(json && json.msgArray && json.msgArray.length){
+        var d = json.msgArray[0];
+        var z = d.z;
+        if(!z || z === "-" ) z = d.y; // 若無成交價，退回昨收
+        var p = parseFloat(z);
+        if(!isNaN(p)) return {price:p, name:d.n || null};
+      }
+      return null;
+    }
+    return fetch(urlTse).then(function(r){ return r.json(); }).then(function(j){
+      var res = parse(j);
+      if(res) return res;
+      return fetch(urlOtc).then(function(r){ return r.json(); }).then(parse);
+    });
+  }
+
+  /* ---------------- 分類 CRUD ---------------- */
+  function addCategory(){
+    var maxOrder = state.categories.reduce(function(m,c){ return Math.max(m,c.order); }, -1);
+    state.categories.push({id: uid("cat"), name:"新的分類 🗂️", order: maxOrder+1});
+    debouncedSave();
+    render();
+  }
+
+  function renameCategory(id, name){
+    var cat = state.categories.find(function(c){ return c.id === id; });
+    if(cat){ cat.name = (name && name.trim()) ? name.trim() : cat.name; }
+    debouncedSave();
+    render();
+  }
+
+  function moveCategory(id, dir){
+    var sorted = state.categories.slice().sort(function(a,b){ return a.order-b.order; });
+    var idx = sorted.findIndex(function(c){ return c.id === id; });
+    var swapIdx = idx + dir;
+    if(swapIdx < 0 || swapIdx >= sorted.length) return;
+    var tmp = sorted[idx].order;
+    sorted[idx].order = sorted[swapIdx].order;
+    sorted[swapIdx].order = tmp;
+    debouncedSave();
+    render();
+  }
+
+  function deleteCategory(id){
+    if(state.categories.length <= 1){
+      showToast("至少要保留一個分類唷 🌱");
+      return;
+    }
+    if(!confirm("刪除這個分類後，裡面的股票會移到其他分類，確定要刪除嗎？")) return;
+    var remaining = state.categories.filter(function(c){ return c.id !== id; });
+    var fallback = remaining.sort(function(a,b){ return a.order-b.order; })[0];
+    state.rows.forEach(function(r){ if(r.categoryId === id) r.categoryId = fallback.id; });
+    state.categories = remaining;
+    debouncedSave();
+    render();
+  }
+
+  /* ---------------- 股票列 CRUD ---------------- */
+  function addRow(categoryId){
+    if(state.rows.length >= MAX_ROWS){
+      showToast("已達 100 檔股票上限囉 🎈");
+      return;
+    }
+    state.rows.push({
+      id: uid("row"),
+      categoryId: categoryId,
+      code: "",
+      name: "",
+      currentPrice: "",
+      costPrice: ""
+    });
+    debouncedSave();
+    render();
+  }
+
+  function deleteRow(id){
+    state.rows = state.rows.filter(function(r){ return r.id !== id; });
+    delete rowRefs[id];
+    delete lastNotified[id];
+    debouncedSave();
+    render();
+  }
+
+  /* ---------------- 自動完成 ---------------- */
+  function ensureDropdown(){
+    if(activeDropdown) return activeDropdown;
+    var dd = document.createElement("div");
+    dd.className = "autocomplete-dd";
+    document.body.appendChild(dd);
+    activeDropdown = dd;
+    return dd;
+  }
+
+  function hideDropdown(){
+    if(activeDropdown) activeDropdown.style.display = "none";
+  }
+
+  function showDropdownFor(input, rowId){
+    var q = input.value.trim().toLowerCase();
+    var matches = [];
+    if(q){
+      matches = STOCK_LIST.filter(function(s){
+        return s[0].indexOf(q) === 0 || s[1].toLowerCase().indexOf(q) !== -1;
+      }).slice(0,8);
+    }
+    var dd = ensureDropdown();
+    if(!matches.length){ dd.style.display = "none"; return; }
+    dd.innerHTML = matches.map(function(m){
+      return '<div class="autocomplete-item" data-code="'+m[0]+'" data-name="'+m[1]+'">'+
+             '<span>'+m[1]+'</span><small>'+m[0]+'</small></div>';
+    }).join("");
+    var rect = input.getBoundingClientRect();
+    dd.style.left = rect.left + "px";
+    dd.style.top = (rect.bottom + 4) + "px";
+    dd.style.width = Math.max(rect.width, 180) + "px";
+    dd.style.display = "block";
+    Array.prototype.forEach.call(dd.querySelectorAll(".autocomplete-item"), function(item){
+      item.onmousedown = function(e){
+        e.preventDefault();
+        applyStockSelection(rowId, item.getAttribute("data-code"), item.getAttribute("data-name"));
+        dd.style.display = "none";
+      };
+    });
+  }
+
+  function applyStockSelection(rowId, code, name){
+    var row = state.rows.find(function(r){ return r.id === rowId; });
+    if(!row) return;
+    row.code = code;
+    row.name = name + "(" + code + ")";
+    var ref = rowRefs[rowId];
+    if(ref && ref.nameInput) ref.nameInput.value = row.name;
+    debouncedSave();
+    loadPriceForRow(rowId);
+  }
+
+  function tryResolveTypedCode(rowId, raw){
+    var row = state.rows.find(function(r){ return r.id === rowId; });
+    if(!row) return;
+    var val = raw.trim();
+    var codeMatch = val.match(/^\d{4,6}$/);
+    if(codeMatch){
+      var known = STOCK_LIST.find(function(s){ return s[0] === val; });
+      row.code = val;
+      row.name = known ? (known[1] + "(" + val + ")") : val;
+      var ref = rowRefs[rowId];
+      if(ref && ref.nameInput) ref.nameInput.value = row.name;
+      debouncedSave();
+      loadPriceForRow(rowId);
+      return;
+    }
+    // 嘗試用文字比對名稱
+    var byName = STOCK_LIST.find(function(s){ return s[1] === val; });
+    if(byName){
+      applyStockSelection(rowId, byName[0], byName[1]);
+      return;
+    }
+    row.name = val;
+    row.code = "";
+    debouncedSave();
+  }
+
+  function loadPriceForRow(rowId){
+    var row = state.rows.find(function(r){ return r.id === rowId; });
+    if(!row || !row.code) return;
+    var ref = rowRefs[rowId];
+    if(ref && ref.priceInput) ref.priceInput.placeholder = "查詢中…";
+    fetchPrice(row.code).then(function(res){
+      if(res && res.price != null){
+        row.currentPrice = res.price;
+        if(ref && ref.priceInput) ref.priceInput.value = res.price;
+        debouncedSave();
+        updateStatusCell(rowId);
+      }else{
+        if(ref && ref.priceInput) ref.priceInput.placeholder = "請手動輸入";
+      }
+    }).catch(function(){
+      if(ref && ref.priceInput) ref.priceInput.placeholder = "自動查價失敗，請手動輸入";
+    });
+  }
+
+  function refreshAllPrices(){
+    var codes = state.rows.filter(function(r){ return r.code; });
+    if(!codes.length){ showToast("目前沒有已設定代碼的股票可以更新唷"); return; }
+    showToast("正在重新整理現價… 🔄");
+    codes.forEach(function(r){ loadPriceForRow(r.id); });
+  }
+
+  /* ---------------- 渲染 ---------------- */
+  function render(){
+    var container = document.getElementById("categories-container");
+    container.innerHTML = "";
+    rowRefs = {};
+
+    var sortedCats = state.categories.slice().sort(function(a,b){ return a.order-b.order; });
+
+    if(!sortedCats.length){
+      container.innerHTML = '<div class="empty-hint">還沒有任何分類，點選下方「新增分類」開始吧 🎈</div>';
+    }
+
+    sortedCats.forEach(function(cat, idx){
+      var catEl = document.createElement("div");
+      catEl.className = "category";
+
+      var rows = state.rows.filter(function(r){ return r.categoryId === cat.id; });
+
+      var header = document.createElement("div");
+      header.className = "category-header";
+      header.innerHTML =
+        '<span class="cat-controls">'+
+          '<button class="btn-icon" data-action="cat-up" title="上移">⬆️</button>'+
+          '<button class="btn-icon" data-action="cat-down" title="下移">⬇️</button>'+
+        '</span>'+
+        '<span class="category-name" data-action="cat-rename" title="點我可重新命名">'+escapeHtml(cat.name)+'</span>'+
+        '<span class="cat-count">'+rows.length+' 檔</span>'+
+        '<button class="btn-icon" data-action="cat-add-row" title="在此分類新增股票">➕</button>'+
+        '<button class="btn-icon" data-action="cat-delete" title="刪除分類">🗑️</button>';
+      catEl.appendChild(header);
+
+      header.querySelector('[data-action="cat-up"]').onclick = function(){ moveCategory(cat.id, -1); };
+      header.querySelector('[data-action="cat-down"]').onclick = function(){ moveCategory(cat.id, 1); };
+      header.querySelector('[data-action="cat-delete"]').onclick = function(){ deleteCategory(cat.id); };
+      header.querySelector('[data-action="cat-add-row"]').onclick = function(){ addRow(cat.id); };
+
+      var nameSpan = header.querySelector('[data-action="cat-rename"]');
+      nameSpan.onclick = function(){
+        var input = document.createElement("input");
+        input.className = "category-name-input";
+        input.value = cat.name;
+        nameSpan.replaceWith(input);
+        input.focus();
+        input.select();
+        function commit(){ renameCategory(cat.id, input.value); }
+        input.onblur = commit;
+        input.onkeydown = function(e){ if(e.key === "Enter"){ input.blur(); } };
+      };
+
+      var tableWrap = document.createElement("div");
+      tableWrap.className = "table-wrap";
+
+      if(!rows.length){
+        tableWrap.innerHTML = '<div class="empty-hint">這個分類還沒有股票，點上方 ➕ 新增一檔吧 🌱</div>';
+      }else{
+        var table = document.createElement("table");
+        table.innerHTML =
+          '<thead><tr>'+
+          '<th>股票名稱／代碼</th><th>現價</th><th>成本均價</th><th>獲利／停損判斷</th><th></th>'+
+          '</tr></thead>';
+        var tbody = document.createElement("tbody");
+        rows.forEach(function(row){
+          var tr = document.createElement("tr");
+
+          var tdName = document.createElement("td");
+          tdName.className = "name-cell";
+          var nameInput = document.createElement("input");
+          nameInput.className = "cell-input";
+          nameInput.placeholder = "輸入代碼或名稱，例如 2330 或 台積電";
+          nameInput.value = row.name || "";
+          nameInput.addEventListener("input", function(){ showDropdownFor(nameInput, row.id); });
+          nameInput.addEventListener("focus", function(){ showDropdownFor(nameInput, row.id); });
+          nameInput.addEventListener("blur", function(){
+            setTimeout(hideDropdown, 150);
+            tryResolveTypedCode(row.id, nameInput.value);
+          });
+          tdName.appendChild(nameInput);
+
+          var tdPrice = document.createElement("td");
+          tdPrice.className = "price-cell";
+          var priceInput = document.createElement("input");
+          priceInput.className = "cell-input";
+          priceInput.type = "number";
+          priceInput.step = "0.01";
+          priceInput.placeholder = "現價";
+          priceInput.value = row.currentPrice === "" ? "" : row.currentPrice;
+          priceInput.addEventListener("input", function(){
+            row.currentPrice = priceInput.value;
+            updateStatusCell(row.id);
+            debouncedSave();
+          });
+          tdPrice.appendChild(priceInput);
+
+          var tdCost = document.createElement("td");
+          tdCost.className = "cost-cell";
+          var costInput = document.createElement("input");
+          costInput.className = "cell-input";
+          costInput.type = "number";
+          costInput.step = "0.01";
+          costInput.placeholder = "成本均價";
+          costInput.value = row.costPrice === "" ? "" : row.costPrice;
+          costInput.addEventListener("input", function(){
+            row.costPrice = costInput.value;
+            updateStatusCell(row.id);
+            debouncedSave();
+          });
+          tdCost.appendChild(costInput);
+
+          var tdStatus = document.createElement("td");
+          tdStatus.className = "status-cell";
+          tdStatus.innerHTML = statusHtml(computeStatus(row));
+
+          var tdDel = document.createElement("td");
+          var delBtn = document.createElement("button");
+          delBtn.className = "btn-icon";
+          delBtn.title = "刪除這一列";
+          delBtn.textContent = "🗑️";
+          delBtn.onclick = function(){ deleteRow(row.id); };
+          var actWrap = document.createElement("div");
+          actWrap.className = "row-actions";
+          actWrap.appendChild(delBtn);
+          tdDel.appendChild(actWrap);
+
+          tr.appendChild(tdName);
+          tr.appendChild(tdPrice);
+          tr.appendChild(tdCost);
+          tr.appendChild(tdStatus);
+          tr.appendChild(tdDel);
+          tbody.appendChild(tr);
+
+          rowRefs[row.id] = {priceInput:priceInput, costInput:costInput, statusCell:tdStatus, nameInput:nameInput};
+        });
+        table.appendChild(tbody);
+        tableWrap.appendChild(table);
+      }
+
+      catEl.appendChild(tableWrap);
+
+      var addBar = document.createElement("div");
+      addBar.className = "add-row-bar";
+      var addBtn = document.createElement("button");
+      addBtn.className = "btn btn-ghost btn-sm";
+      addBtn.textContent = "➕ 新增股票到「" + cat.name + "」";
+      addBtn.onclick = function(){ addRow(cat.id); };
+      addBar.appendChild(addBtn);
+      catEl.appendChild(addBar);
+
+      container.appendChild(catEl);
+    });
+
+    document.getElementById("row-count").textContent = state.rows.length;
+    document.getElementById("cat-count-total").textContent = state.categories.length;
+    updateMoodLine();
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  /* ---------------- 通知權限 ---------------- */
+  function updateNotifStatusText(){
+    var el = document.getElementById("notif-status");
+    if(!("Notification" in window)){
+      el.textContent = "此瀏覽器不支援通知功能";
+      return;
+    }
+    if(Notification.permission === "granted"){
+      el.textContent = "✅ 通知已開啟，達到獲利／停損點時會提醒你";
+    }else if(Notification.permission === "denied"){
+      el.textContent = "🔕 通知已被封鎖，請至瀏覽器設定手動開啟";
+    }else{
+      el.textContent = "尚未開啟通知提醒";
+    }
+  }
+
+  document.getElementById("btn-notif").onclick = function(){
+    if(!("Notification" in window)){
+      showToast("此瀏覽器不支援通知功能 😢");
+      return;
+    }
+    Notification.requestPermission().then(function(){
+      updateNotifStatusText();
+      if(Notification.permission === "granted"){
+        showToast("通知已開啟！🔔 有獲利／停損時會提醒你");
+      }
+    });
+  };
+
+  document.getElementById("btn-refresh").onclick = refreshAllPrices;
+  document.getElementById("btn-add-category").onclick = addCategory;
+
+  window.addEventListener("scroll", hideDropdown, true);
+  window.addEventListener("resize", hideDropdown);
+
+  updateNotifStatusText();
+  loadState();
+})();
+</script>
+</body>
+</html>
