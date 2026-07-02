@@ -266,7 +266,8 @@
   .autocomplete-item:hover{background:var(--card-soft);}
   .autocomplete-item small{color:var(--text-light);}
 
-  .row-actions{display:flex; gap:4px; justify-content:center;}
+  .row-actions{display:flex; flex-direction:column; gap:4px; align-items:center; min-width:96px;}
+  .row-actions select{width:88px;}
 
   .add-row-bar{
     display:flex;
@@ -325,7 +326,7 @@
   <span class="cloud c3">☁️</span>
   <div class="balloon">🎈</div>
   <h1>股票帶你飛</h1>
-  <p>溫暖追蹤每一筆未實現損益，小確幸投資日常 ☕️✨</p>
+  <p>未實現只是過程，陪你一起迎向解套 📈✨</p>
   <div class="hero-actions">
     <button class="btn btn-secondary" id="btn-refresh">🔄 重新整理現價</button>
     <button class="btn btn-primary" id="btn-notif">🔔 開啟提醒通知</button>
@@ -394,7 +395,7 @@
         list.forEach(function(item){
           var code = (item[0] || "").trim();
           var name = (item[1] || "").trim();
-          if(/^\d{4,6}$/.test(code) && name && !existingCodes[code]){
+          if(/^\d{4,6}[A-Za-z]?$/.test(code) && name && !existingCodes[code]){
             STOCK_LIST.push([code, name]);
             existingCodes[code] = true;
           }
@@ -434,7 +435,10 @@
   /* ---------------- 儲存 / 讀取（使用瀏覽器 localStorage，資料只存在這個裝置上） ---------------- */
   function debouncedSave(){
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(saveState, 400);
+    saveTimer = setTimeout(function(){
+      saveState();
+      syncWatchlistToServer();
+    }, 400);
   }
 
   function saveState(){
@@ -459,6 +463,7 @@
     }catch(e){
       storageOk = false;
     }
+    normalizeRowOrders();
     render();
   }
 
@@ -577,18 +582,61 @@
   }
 
   /* ---------------- 股票列 CRUD ---------------- */
+  function normalizeRowOrders(){
+    var byCat = {};
+    state.rows.forEach(function(r){
+      if(!byCat[r.categoryId]) byCat[r.categoryId] = [];
+      byCat[r.categoryId].push(r);
+    });
+    Object.keys(byCat).forEach(function(catId){
+      byCat[catId].forEach(function(r, idx){
+        if(typeof r.order !== "number") r.order = idx;
+      });
+    });
+  }
+
+  function moveRow(rowId, dir){
+    var row = state.rows.find(function(r){ return r.id === rowId; });
+    if(!row) return;
+    var catRows = state.rows.filter(function(r){ return r.categoryId === row.categoryId; })
+      .sort(function(a,b){ return (a.order||0)-(b.order||0); });
+    var idx = catRows.indexOf(row);
+    var swapIdx = idx + dir;
+    if(swapIdx < 0 || swapIdx >= catRows.length) return;
+    var tmp = catRows[idx].order;
+    catRows[idx].order = catRows[swapIdx].order;
+    catRows[swapIdx].order = tmp;
+    debouncedSave();
+    render();
+  }
+
+  function changeRowCategory(rowId, newCategoryId){
+    var row = state.rows.find(function(r){ return r.id === rowId; });
+    if(!row || row.categoryId === newCategoryId) return;
+    row.categoryId = newCategoryId;
+    var maxOrder = state.rows.filter(function(r){ return r.categoryId === newCategoryId && r.id !== rowId; })
+      .reduce(function(m,r){ return Math.max(m, r.order||0); }, -1);
+    row.order = maxOrder + 1;
+    debouncedSave();
+    render();
+    showToast("已搬到「" + (state.categories.find(function(c){return c.id===newCategoryId;})||{}).name + "」🎈");
+  }
+
   function addRow(categoryId){
     if(state.rows.length >= MAX_ROWS){
       showToast("已達 100 檔股票上限囉 🎈");
       return;
     }
+    var maxOrder = state.rows.filter(function(r){ return r.categoryId === categoryId; })
+      .reduce(function(m,r){ return Math.max(m, r.order||0); }, -1);
     state.rows.push({
       id: uid("row"),
       categoryId: categoryId,
       code: "",
       name: "",
       currentPrice: "",
-      costPrice: ""
+      costPrice: "",
+      order: maxOrder + 1
     });
     debouncedSave();
     render();
@@ -644,13 +692,21 @@
     });
   }
 
+  function adjustNameFontSize(input){
+    var len = (input.value || "").length;
+    if(len > 16) input.style.fontSize = "11px";
+    else if(len > 12) input.style.fontSize = "12px";
+    else if(len > 9) input.style.fontSize = "12.8px";
+    else input.style.fontSize = "";
+  }
+
   function applyStockSelection(rowId, code, name){
     var row = state.rows.find(function(r){ return r.id === rowId; });
     if(!row) return;
     row.code = code;
     row.name = name + "(" + code + ")";
     var ref = rowRefs[rowId];
-    if(ref && ref.nameInput) ref.nameInput.value = row.name;
+    if(ref && ref.nameInput){ ref.nameInput.value = row.name; adjustNameFontSize(ref.nameInput); }
     debouncedSave();
     loadPriceForRow(rowId);
   }
@@ -659,13 +715,13 @@
     var row = state.rows.find(function(r){ return r.id === rowId; });
     if(!row) return;
     var val = raw.trim();
-    var codeMatch = val.match(/^\d{4,6}$/);
+    var codeMatch = val.match(/^\d{4,6}[A-Za-z]?$/);
     if(codeMatch){
       var known = STOCK_LIST.find(function(s){ return s[0] === val; });
       row.code = val;
       row.name = known ? (known[1] + "(" + val + ")") : val;
       var ref = rowRefs[rowId];
-      if(ref && ref.nameInput) ref.nameInput.value = row.name;
+      if(ref && ref.nameInput){ ref.nameInput.value = row.name; adjustNameFontSize(ref.nameInput); }
       debouncedSave();
       loadPriceForRow(rowId);
       return;
@@ -765,10 +821,11 @@
         var table = document.createElement("table");
         table.innerHTML =
           '<thead><tr>'+
-          '<th>股票名稱／代碼</th><th>現價</th><th>成本均價</th><th>獲利／停損判斷</th><th></th>'+
+          '<th>股票名稱／代碼</th><th>現價</th><th>成本均價</th><th>獲利／停損判斷</th><th>調整</th>'+
           '</tr></thead>';
         var tbody = document.createElement("tbody");
-        rows.forEach(function(row){
+        var sortedRows = rows.slice().sort(function(a,b){ return (a.order||0)-(b.order||0); });
+        sortedRows.forEach(function(row){
           var tr = document.createElement("tr");
 
           var tdName = document.createElement("td");
@@ -777,12 +834,14 @@
           nameInput.className = "cell-input";
           nameInput.placeholder = "輸入代碼或名稱，例如 2330 或 台積電";
           nameInput.value = row.name || "";
+          adjustNameFontSize(nameInput);
           nameInput.addEventListener("input", function(){
             showDropdownFor(nameInput, row.id);
-            // 打完完整代碼（4~6碼數字）後，稍等一下自動查價，不用等到失焦
+            adjustNameFontSize(nameInput);
+            // 打完完整代碼（4~6碼數字，可含字母尾碼）後，稍等一下自動查價，不用等到失焦
             clearTimeout(nameInput._autoTimer);
             var val = nameInput.value.trim();
-            if(/^\d{4,6}$/.test(val)){
+            if(/^\d{4,6}[A-Za-z]?$/.test(val)){
               nameInput._autoTimer = setTimeout(function(){
                 tryResolveTypedCode(row.id, nameInput.value);
               }, 500);
@@ -839,14 +898,47 @@
           tdStatus.innerHTML = statusHtml(computeStatus(row));
 
           var tdDel = document.createElement("td");
+          var upBtn = document.createElement("button");
+          upBtn.className = "btn-icon";
+          upBtn.title = "上移";
+          upBtn.textContent = "⬆️";
+          upBtn.onclick = function(){ moveRow(row.id, -1); };
+
+          var downBtn = document.createElement("button");
+          downBtn.className = "btn-icon";
+          downBtn.title = "下移";
+          downBtn.textContent = "⬇️";
+          downBtn.onclick = function(){ moveRow(row.id, 1); };
+
           var delBtn = document.createElement("button");
           delBtn.className = "btn-icon";
           delBtn.title = "刪除這一列";
           delBtn.textContent = "🗑️";
           delBtn.onclick = function(){ deleteRow(row.id); };
+
+          var catSelect = document.createElement("select");
+          catSelect.className = "cell-input";
+          catSelect.style.fontSize = "11.5px";
+          catSelect.style.padding = "5px 4px";
+          catSelect.title = "移動到其他分類";
+          state.categories.slice().sort(function(a,b){ return a.order-b.order; }).forEach(function(c){
+            var opt = document.createElement("option");
+            opt.value = c.id;
+            opt.textContent = c.name;
+            if(c.id === row.categoryId) opt.selected = true;
+            catSelect.appendChild(opt);
+          });
+          catSelect.onchange = function(){ changeRowCategory(row.id, catSelect.value); };
+
           var actWrap = document.createElement("div");
           actWrap.className = "row-actions";
-          actWrap.appendChild(delBtn);
+          var moveWrap = document.createElement("div");
+          moveWrap.style.display = "flex";
+          moveWrap.appendChild(upBtn);
+          moveWrap.appendChild(downBtn);
+          moveWrap.appendChild(delBtn);
+          actWrap.appendChild(moveWrap);
+          actWrap.appendChild(catSelect);
           tdDel.appendChild(actWrap);
 
           tr.appendChild(tdName);
@@ -887,6 +979,84 @@
     });
   }
 
+  /* ---------------- 即時盯盤推播（Web Push，App 沒開也能收到通知） ---------------- */
+  var VAPID_PUBLIC_KEY = "BMpOUYH3Zpo5QJHHuQU7hnc7-A1WS2rl0Zx6tnReyqMxAaNAFcf2t3q3UrKGhie06I-5OyIt7uR17RcyPvckXJ0";
+  var DEVICE_ID_KEY = "stockapp-device-id";
+  var PUSH_ENABLED_KEY = "stockapp-push-enabled";
+
+  function getDeviceId(){
+    var id = null;
+    try{ id = window.localStorage.getItem(DEVICE_ID_KEY); }catch(e){}
+    if(!id){
+      id = "dev-" + Math.random().toString(36).slice(2,10) + Date.now().toString(36);
+      try{ window.localStorage.setItem(DEVICE_ID_KEY, id); }catch(e){}
+    }
+    return id;
+  }
+
+  function isPushEnabled(){
+    try{ return window.localStorage.getItem(PUSH_ENABLED_KEY) === "1"; }catch(e){ return false; }
+  }
+  function setPushEnabled(v){
+    try{ window.localStorage.setItem(PUSH_ENABLED_KEY, v ? "1" : "0"); }catch(e){}
+  }
+
+  function urlBase64ToUint8Array(base64String){
+    var padding = "=".repeat((4 - base64String.length % 4) % 4);
+    var base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    var rawData = window.atob(base64);
+    var outputArray = new Uint8Array(rawData.length);
+    for(var i = 0; i < rawData.length; ++i){
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  }
+
+  function buildWatchlistPayload(){
+    return state.rows.map(function(r){
+      return { id: r.id, code: r.code, name: r.name, costPrice: r.costPrice };
+    });
+  }
+
+  function syncWatchlistToServer(){
+    if(!isPushEnabled()) return;
+    fetch("/api/sync-watchlist", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ deviceId: getDeviceId(), watchlist: buildWatchlistPayload() })
+    }).catch(function(){ /* 靜默失敗，不影響本機使用 */ });
+  }
+
+  function subscribeForPush(){
+    if(!("serviceWorker" in navigator) || !("PushManager" in window)){
+      showToast("這個瀏覽器不支援背景推播 😢");
+      return Promise.reject();
+    }
+    return navigator.serviceWorker.register("/sw.js").then(function(reg){
+      return reg.pushManager.getSubscription().then(function(existing){
+        if(existing) return existing;
+        return reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+        });
+      });
+    }).then(function(subscription){
+      return fetch("/api/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          deviceId: getDeviceId(),
+          subscription: subscription.toJSON ? subscription.toJSON() : subscription,
+          watchlist: buildWatchlistPayload()
+        })
+      });
+    }).then(function(r){
+      if(!r.ok) throw new Error("subscribe api failed");
+      setPushEnabled(true);
+      return true;
+    });
+  }
+
   /* ---------------- 通知權限 ---------------- */
   function isIos(){
     return /iphone|ipad|ipod/i.test(navigator.userAgent);
@@ -905,8 +1075,10 @@
       }
       return;
     }
-    if(Notification.permission === "granted"){
-      el.textContent = "✅ 通知已開啟，達到獲利／停損點時會提醒你";
+    if(Notification.permission === "granted" && isPushEnabled()){
+      el.textContent = "✅ 即時盯盤已開啟，App 沒開也會收到獲利／停損提醒";
+    }else if(Notification.permission === "granted"){
+      el.textContent = "🔔 通知權限已開啟，但即時盯盤尚未啟用，請再按一次按鈕";
     }else if(Notification.permission === "denied"){
       el.textContent = "🔕 通知已被封鎖，請至瀏覽器設定手動開啟";
     }else{
@@ -923,11 +1095,16 @@
       }
       return;
     }
-    Notification.requestPermission().then(function(){
+    Notification.requestPermission().then(function(permission){
       updateNotifStatusText();
-      if(Notification.permission === "granted"){
-        showToast("通知已開啟！🔔 有獲利／停損時會提醒你");
-      }
+      if(permission !== "granted") return;
+      showToast("通知權限已開啟，正在啟用即時盯盤… 🔄");
+      subscribeForPush().then(function(){
+        updateNotifStatusText();
+        showToast("即時盯盤已啟用！🎈 App 沒開也會提醒你");
+      }).catch(function(){
+        showToast("即時盯盤啟用失敗，可能是伺服器端還沒設定好 😢");
+      });
     });
   };
 
@@ -940,6 +1117,11 @@
   updateNotifStatusText();
   loadFullStockList();
   loadState();
+
+  // 如果先前已啟用即時盯盤，網頁重新打開時靜默重新註冊（不用再按一次按鈕）
+  if(isPushEnabled() && "Notification" in window && Notification.permission === "granted"){
+    subscribeForPush().then(updateNotifStatusText).catch(function(){});
+  }
 })();
 </script>
 </body>
