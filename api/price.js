@@ -1,6 +1,6 @@
 export default async function handler(req, res) {
   const code = (req.query.code || "").trim();
-  if (!/^\d{4,6}$/.test(code)) {
+  if (!/^\d{4,6}[A-Za-z]?$/.test(code)) {
     res.status(400).json({ error: "invalid code" });
     return;
   }
